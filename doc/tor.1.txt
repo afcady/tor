@@ -695,6 +695,14 @@ GENERAL OPTIONS
     This setting will be ignored
     for connections to the loopback addresses (127.0.0.0/8 and ::1).
 
+[[OutboundBindAddressLoopback]] **OutboundBindAddressLoopback** __IP__::
+    Make all connections to loopback addresses (127.0.0.0/8 and ::1) originate
+    from the IP address specified.
+ +
+    (For IPv6, make sure the address is added to the loopback interface on your
+    system; e.g. with `ip addr add ::54:6f72/128 dev lo`. For IPv4, `127.*.*.*`
+    should be on the loopback already. `127.84.111.114` encodes "Tor" in ASCII.)
+
 [[PidFile]] **PidFile** __FILE__::
     On startup, write our PID to FILE. On clean shutdown, remove
     FILE. Can not be changed while tor is running.

@@ -434,6 +434,7 @@ static config_var_t option_vars_[] = {
   OBSOLETE("ORListenAddress"),
   VPORT(ORPort),
   V(OutboundBindAddress,         LINELIST,   NULL),
+  V(OutboundBindAddressLoopback, LINELIST,   NULL),
   V(OutboundBindAddressOR,       LINELIST,   NULL),
   V(OutboundBindAddressExit,     LINELIST,   NULL),
 
@@ -8329,6 +8330,12 @@ parse_outbound_addresses(or_options_t *options, int validate_only, char **msg)
   if (parse_outbound_address_lines(options->OutboundBindAddress,
                                    OUTBOUND_ADDR_EXIT_AND_OR, options,
                                    validate_only, msg) < 0) {
+    goto err;
+  }
+
+  if (parse_outbound_address_lines(options->OutboundBindAddressLoopback,
+                                   OUTBOUND_ADDR_LOOPBACK, options, validate_only,
+                                   msg)  < 0) {
     goto err;
   }
 

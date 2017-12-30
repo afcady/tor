@@ -3631,6 +3631,7 @@ typedef struct routerset_t routerset_t;
  * Exit-only, OR-only, or both */
 typedef enum {OUTBOUND_ADDR_EXIT, OUTBOUND_ADDR_OR,
               OUTBOUND_ADDR_EXIT_AND_OR,
+              OUTBOUND_ADDR_LOOPBACK,
               OUTBOUND_ADDR_MAX} outbound_addr_t;
 
 /** Configuration options for a Tor process. */
@@ -3713,6 +3714,8 @@ typedef struct {
   config_line_t *DirPolicy; /**< Lists of dir policy components */
   /** Local address to bind outbound sockets */
   config_line_t *OutboundBindAddress;
+  /** Local address to bind outbound sockets (loopback connections) */
+  config_line_t *OutboundBindAddressLoopback;
   /** Local address to bind outbound relay sockets */
   config_line_t *OutboundBindAddressOR;
   /** Local address to bind outbound exit sockets */

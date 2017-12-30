@@ -138,7 +138,9 @@ static void connection_send_socks5_connect(connection_t *conn);
 static const char *proxy_type_to_string(int proxy_type);
 static int get_proxy_type(void);
 const tor_addr_t *conn_get_outbound_address(sa_family_t family,
-                  const or_options_t *options, unsigned int conn_type);
+                                            const or_options_t *options,
+                                            unsigned int conn_type,
+                                            int is_loopback);
 
 /** The last addresses that our network interface seemed to have been
  * binding to.  We use this as one way to detect when our IP changes.
@@ -1919,10 +1921,10 @@ connection_connect_log_client_use_ip_version(const connection_t *conn)
  **/
 const tor_addr_t *
 conn_get_outbound_address(sa_family_t family,
-             const or_options_t *options, unsigned int conn_type)
+                          const or_options_t *options,
+                          unsigned int conn_type,
+                          int is_loopback)
 {
-  const tor_addr_t *ext_addr = NULL;
-
   int fam_index;
   switch (family) {
     case AF_INET:
@@ -1935,31 +1937,22 @@ conn_get_outbound_address(sa_family_t family,
       return NULL;
   }
 
-  // If an exit connection, use the exit address (if present)
-  if (conn_type == CONN_TYPE_EXIT) {
-    if (!tor_addr_is_null(
-        &options->OutboundBindAddresses[OUTBOUND_ADDR_EXIT][fam_index])) {
-      ext_addr = &options->OutboundBindAddresses[OUTBOUND_ADDR_EXIT]
-                 [fam_index];
-    } else if (!tor_addr_is_null(
-                 &options->OutboundBindAddresses[OUTBOUND_ADDR_EXIT_AND_OR]
-                 [fam_index])) {
-      ext_addr = &options->OutboundBindAddresses[OUTBOUND_ADDR_EXIT_AND_OR]
-                 [fam_index];
-    }
+  const tor_addr_t *ext_addr = NULL;
+  const tor_addr_t (*addrs)[OUTBOUND_ADDR_MAX][2] = &options->OutboundBindAddresses;
+
+  if (is_loopback) {
+    ext_addr = addrs[OUTBOUND_ADDR_LOOPBACK][fam_index];
+  } else if (conn_type == CONN_TYPE_EXIT) {
+    // If an exit connection, use the exit address (if present)
+    ext_addr = addrs[OUTBOUND_ADDR_EXIT][fam_index];
+    if (tor_addr_is_null(ext_addr))
+      ext_addr = addrs[OUTBOUND_ADDR_EXIT_AND_OR][fam_index];
   } else { // All non-exit connections
-    if (!tor_addr_is_null(
-           &options->OutboundBindAddresses[OUTBOUND_ADDR_OR][fam_index])) {
-      ext_addr = &options->OutboundBindAddresses[OUTBOUND_ADDR_OR]
-                 [fam_index];
-    } else if (!tor_addr_is_null(
-                 &options->OutboundBindAddresses[OUTBOUND_ADDR_EXIT_AND_OR]
-                 [fam_index])) {
-      ext_addr = &options->OutboundBindAddresses[OUTBOUND_ADDR_EXIT_AND_OR]
-                 [fam_index];
-    }
+    ext_addr = addrs[OUTBOUND_ADDR_OR][fam_index];
+    if (tor_addr_is_null(ext_addr))
+      ext_addr = addrs[OUTBOUND_ADDR_EXIT_AND_OR][fam_index];
   }
-  return ext_addr;
+  return tor_addr_is_null(ext_addr) ? NULL : ext_addr;
 }
 
 /** Take conn, make a nonblocking socket; try to connect to
@@ -1988,22 +1981,21 @@ connection_connect(connection_t *conn, const char *address,
    */
   connection_connect_log_client_use_ip_version(conn);
 
-  if (!tor_addr_is_loopback(addr)) {
-    const tor_addr_t *ext_addr = NULL;
-    ext_addr = conn_get_outbound_address(tor_addr_family(addr), get_options(),
-                                         conn->type);
-    if (ext_addr) {
-      memset(&bind_addr_ss, 0, sizeof(bind_addr_ss));
-      bind_addr_len = tor_addr_to_sockaddr(ext_addr, 0,
-                                           (struct sockaddr *) &bind_addr_ss,
-                                           sizeof(bind_addr_ss));
-      if (bind_addr_len == 0) {
-        log_warn(LD_NET,
-                 "Error converting OutboundBindAddress %s into sockaddr. "
-                 "Ignoring.", fmt_and_decorate_addr(ext_addr));
-      } else {
-        bind_addr = (struct sockaddr *)&bind_addr_ss;
-      }
+  const tor_addr_t *ext_addr = NULL;
+  ext_addr = conn_get_outbound_address(tor_addr_family(addr), get_options(),
+                                       conn->type,
+                                       tor_addr_is_loopback(addr));
+  if (ext_addr) {
+    memset(&bind_addr_ss, 0, sizeof(bind_addr_ss));
+    bind_addr_len = tor_addr_to_sockaddr(ext_addr, 0,
+                                          (struct sockaddr *) &bind_addr_ss,
+                                          sizeof(bind_addr_ss));
+    if (bind_addr_len == 0) {
+      log_warn(LD_NET,
+                "Error converting OutboundBindAddress %s into sockaddr. "
+                "Ignoring.", fmt_and_decorate_addr(ext_addr));
+    } else {
+      bind_addr = (struct sockaddr *)&bind_addr_ss;
     }
   }
 
